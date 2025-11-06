@@ -22,9 +22,9 @@ __pycache__/
 
 # Data, outputs and large artifacts (do NOT push large datasets to GitHub)
 data/
-files/
 runs/
 all_datasets/
+# Note: files/ folder is small (1.9MB) and contains PDFs, so it's tracked
 
 # model checkpoints
 **/checkpoints/
