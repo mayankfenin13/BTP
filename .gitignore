@@ -1,0 +1,43 @@
+.DS_Store
+.env
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints
+
+# macOS
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.Trashes
+
+# Python virtual envs
+/.venv
+
+# Data, outputs and large artifacts (do NOT push large datasets to GitHub)
+data/
+files/
+runs/
+all_datasets/
+
+# model checkpoints
+**/checkpoints/
+**/metrics/
+**/indices/
+
+# Archives
+*.tar
+*.gz
+*.zip
+
+# Logs
+*.log
+
+# Others
+README.md
