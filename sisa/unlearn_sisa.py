@@ -40,7 +40,7 @@ def main():
             for idx in sl:
                 slice_maps[idx] = (si, r)
     # model factory
-    if dataset == "mnist":
+    if dataset in ["mnist", "fashionmnist"]:
         make_model = lambda: LeNet(num_classes=num_classes)
     else:
         make_model = lambda: small_cnn_cifar(num_classes=num_classes)
@@ -67,12 +67,13 @@ def main():
         model = make_model()
         pre_path = os.path.join(shard_dir, f"slice_{start_r}_preadd.pt")
         model.load_state_dict(torch.load(pre_path, map_location="cpu"))
-        # build indices excluding any unlearn points from all slices >= start_r
+        # Collect all remaining data from start_r onwards (excluding unlearn points)
         new_indices = []
         for r in range(start_r, len(slices)):
             sl = [i for i in slices[r] if i not in set(unlearn_points)]
             new_indices += sl
-            model, acc, _ = train_classifier(model, Subset(train_ds, new_indices), test_ds, epochs=epochs, batch_size=batch_size, lr=lr, device=train_device)
+        # Train ONCE on all remaining data (not per-slice!)
+        model, acc, _ = train_classifier(model, Subset(train_ds, new_indices), test_ds, epochs=epochs, batch_size=batch_size, lr=lr, device=train_device)
         # save final
         torch.save(model.state_dict(), os.path.join(shard_dir, f"after_unlearn.pt"))
     sisa_time = time.time() - un_t0
