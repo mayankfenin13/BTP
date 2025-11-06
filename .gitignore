@@ -20,21 +20,25 @@ __pycache__/
 # Python virtual envs
 /.venv
 
-# Data, outputs and large artifacts (do NOT push large datasets to GitHub)
-data/
-runs/
+# Data, outputs and large artifacts
+# Note: data/ and runs/ are now tracked (user requested)
+# Warning: runs/ is 1.3GB - may cause issues with GitHub
 all_datasets/
-# Note: files/ folder is small (1.9MB) and contains PDFs, so it's tracked
 
-# model checkpoints
-**/checkpoints/
-**/metrics/
-**/indices/
+# model checkpoints (commented out - user wants to track runs/)
+# **/checkpoints/
+# **/metrics/
+# **/indices/
 
 # Archives
 *.tar
 *.gz
 *.zip
+
+# Large dataset files (exceed GitHub 100MB limit)
+data/train_32x32.mat
+data/test_32x32.mat
+data/cifar-10-python.tar.gz
 
 # Logs
 *.log
