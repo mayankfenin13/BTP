@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive script to run SISA and ARCANE on Fashion-MNIST, CIFAR-10, and SVHN
+Comprehensive script to run SISA and ARCANE on Fashion-MNIST and CIFAR-10
 Optimized hyperparameters for good accuracy on each dataset
 """
 
@@ -10,23 +10,42 @@ import sys
 import json
 import glob
 from pathlib import Path
+import matplotlib
+matplotlib.use("Agg")  # Use non-interactive backend (no display required)
 import matplotlib.pyplot as plt
 
 BASE_DIR = "runs/all_datasets"
 
-# Experiment configurations optimized for each dataset
+# Experiment configurations optimized for good accuracy and speedup
+# Note: epochs parameter is now metadata (actual training uses 1 epoch per slice/block)
+# Total training epochs = slices (SISA) or blocks (ARCANE)
 EXPERIMENTS = {
     "fashionmnist": {
-        "sisa":   {"epochs": 1, "shards": 2, "slices": 2, "batch_size": 128, "lr": 1e-3, "limit_per_class": 300},
-        "arcane": {"epochs": 1, "blocks": 2, "batch_size": 128, "lr": 1e-3, "limit_per_class": 300}
+        "sisa":   {
+            "epochs": 24,           # Metadata: total epochs = slices
+            "shards": 16,           # More shards = better speedup (fewer affected shards)
+            "slices": 24,           # 24 slices = 24 epochs total (1 per slice)
+            "batch_size": 128,
+            "lr": 5e-3,
+            "limit_per_class": 2000  # More data for better accuracy
+        }
     },
     "cifar10": {
-        "sisa":   {"epochs": 1, "shards": 2, "slices": 2, "batch_size": 64,  "lr": 1e-3, "limit_per_class": 200},
-        "arcane": {"epochs": 1, "blocks": 2, "batch_size": 64,  "lr": 1e-3, "limit_per_class": 200}
-    },
-    "svhn": {
-        "sisa":   {"epochs": 1, "shards": 2, "slices": 2, "batch_size": 64,  "lr": 1e-3, "limit_per_class": 200},
-        "arcane": {"epochs": 1, "blocks": 2, "batch_size": 64,  "lr": 1e-3, "limit_per_class": 200}
+        "sisa":   {
+            "epochs": 30,           # Metadata: total epochs = slices (increased for better accuracy)
+            "shards": 5,            # More shards = better speedup
+            "slices": 30,           # 30 slices = 30 epochs total - more epochs for better accuracy
+            "batch_size": 128,      # Increased for GPU (was 64)
+            "lr": 1e-3,             # Lower LR for better convergence with more epochs
+            "limit_per_class": 2000  # Increased from 400 to 2000 for better accuracy (vs full 5000)
+        },
+        "arcane": {
+            "epochs": 30,           # Metadata: total epochs = blocks (increased for better accuracy)
+            "blocks": 30,           # 30 blocks = 30 epochs total - more epochs for better accuracy
+            "batch_size": 128,      # Increased for GPU (was 64)
+            "lr": 1e-3,             # Lower LR for better convergence with more epochs
+            "limit_per_class": 2000  # Increased from 400 to 2000 for better accuracy (vs full 5000)
+        }
     }
 }
 
@@ -72,7 +91,7 @@ def run_sisa(dataset, config):
     cmd = [
         "python", "sisa/unlearn_sisa.py",
         "--run-dir", out_dir,
-        "--unlearn-frac", "0.01"
+        "--unlearn-frac", "0.05"
     ]
     
     if not run_command(cmd, f"SISA unlearning on {dataset}"):
@@ -108,7 +127,7 @@ def run_arcane(dataset, config):
     cmd = [
         "python", "arcane/unlearn_arcane.py",
         "--run-dir", out_dir,
-        "--unlearn-frac", "0.01"
+        "--unlearn-frac", "0.05"
     ]
     
     if not run_command(cmd, f"ARCANE unlearning on {dataset}"):
@@ -122,7 +141,7 @@ def run_arcane(dataset, config):
 
 def print_summary():
     """Print accuracy and time summary from all runs"""
-    results = []
+    results_dict = {}  # (method, dataset) -> (result, mtime)
     
     for run_dir in glob.glob(f"{BASE_DIR}/*"):
         if not os.path.isdir(run_dir):
@@ -136,6 +155,10 @@ def print_summary():
                 summary = json.load(f)
                 method = "SISA" if "sisa" in run_dir else "ARCANE"
                 dataset = os.path.basename(run_dir).split("_")[1]
+                
+                # Skip datasets/methods that are not part of the current run
+                if dataset != "fashionmnist" or method != "SISA":
+                    continue
                 
                 acc_key = "ensemble_acc" if "sisa" in run_dir else "arcane_acc"
                 if acc_key in summary:
@@ -162,10 +185,25 @@ def print_summary():
                                 result["unlearn_time"] = unlearn[time_key]
                             if baseline_key in unlearn:
                                 result["baseline_time"] = unlearn[baseline_key]
-                                if result["baseline_time"] and result["unlearn_time"]:
-                                    result["speedup"] = result["baseline_time"] / result["unlearn_time"]
+                            
+                            # Use speedup from JSON (speedup_train_only for SISA, speedup for ARCANE)
+                            if "sisa" in run_dir:
+                                if "speedup_train_only" in unlearn:
+                                    result["speedup"] = unlearn["speedup_train_only"]
+                            else:
+                                if "speedup" in unlearn:
+                                    result["speedup"] = unlearn["speedup"]
                     
-                    results.append(result)
+                    # Get modification time to keep only most recent run
+                    mtime = os.path.getmtime(run_dir)
+                    key = (method, dataset)
+                    
+                    # Keep only the most recent run for each method-dataset combination
+                    if key not in results_dict or mtime > results_dict[key][1]:
+                        results_dict[key] = (result, mtime)
+    
+    # Convert to list of results only
+    results = [r[0] for r in results_dict.values()]
     
     print("\n" + "="*90)
     print("ACCURACY SUMMARY")
@@ -191,6 +229,9 @@ def create_comparison_plots(results):
     """Create comparison plots across all datasets"""
     if not results:
         return
+    
+    # Filter out SVHN (not in current experiments)
+    results = [r for r in results if r["dataset"] != "svhn"]
     
     # Group by dataset
     datasets = sorted(set(r["dataset"] for r in results))
@@ -247,11 +288,10 @@ def main():
     os.makedirs(BASE_DIR, exist_ok=True)
     
     print("="*70)
-    print("Running SISA and ARCANE on Fashion-MNIST, CIFAR-10, and SVHN")
+    print("Running SISA on Fashion-MNIST only")
     print("="*70)
     print()
-    print("This will run experiments with optimized hyperparameters.")
-    print("Note: CIFAR-10 and SVHN may take longer (GPU recommended).")
+    print("This will run SISA experiments with optimized hyperparameters.")
     print()
     
     # Ask for confirmation
@@ -265,8 +305,8 @@ def main():
         print("Cancelled.")
         return
     
-    # Run experiments
-    datasets = ["fashionmnist", "cifar10", "svhn"]
+    # Run experiments (only Fashion-MNIST SISA)
+    datasets = ["fashionmnist"]
     
     for dataset in datasets:
         print(f"\n{'#'*70}")
@@ -275,15 +315,10 @@ def main():
         
         config = EXPERIMENTS[dataset]
         
-        # Run SISA
+        # Run SISA only
         print(f"\n>>> Running SISA on {dataset}...")
         if not run_sisa(dataset, config["sisa"]):
-            print(f"WARNING: SISA on {dataset} failed, continuing...")
-        
-        # Run ARCANE
-        print(f"\n>>> Running ARCANE on {dataset}...")
-        if not run_arcane(dataset, config["arcane"]):
-            print(f"WARNING: ARCANE on {dataset} failed, continuing...")
+            print(f"WARNING: SISA on {dataset} failed.")
     
     # Print summary
     print_summary()

@@ -51,12 +51,18 @@ def random_shards(indices: List[int], num_shards: int, rng: np.random.Generator)
 
 
 def cap_per_class(indices_by_class: Dict[int, list], limit: int) -> Dict[int, list]:
+    """Cap indices per class using random sampling (not first N)"""
+    import random
     capped = {}
     for c, idxs in indices_by_class.items():
         if limit is None or limit <= 0:
             capped[c] = list(idxs)
         else:
-            capped[c] = list(idxs)[:min(limit, len(idxs))]
+            idxs_list = list(idxs)
+            if len(idxs_list) <= limit:
+                capped[c] = idxs_list
+            else:
+                capped[c] = random.sample(idxs_list, limit)
     return capped
 
 def merge_class_indices(indices_by_class: Dict[int, list]) -> list:

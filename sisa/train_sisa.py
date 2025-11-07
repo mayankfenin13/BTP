@@ -14,7 +14,7 @@ from common.train import train_classifier, evaluate
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", type=str, default="mnist", choices=["mnist","fashionmnist","cifar10","svhn"])
-    ap.add_argument("--epochs", type=int, default=5)
+    ap.add_argument("--epochs", type=int, default=5, help="Total epoch budget (will use 1 epoch per slice)")
     ap.add_argument("--shards", type=int, default=5)
     ap.add_argument("--slices", type=int, default=5)
     ap.add_argument("--batch-size", type=int, default=128)
@@ -38,19 +38,31 @@ def main():
     else:
         make_model = lambda: small_cnn_cifar(num_classes=num_classes)
     # Train a constituent per shard with slicing checkpoints
-    meta = {"dataset": args.dataset, "epochs": args.epochs, "shards": args.shards, "slices": args.slices, "batch_size": args.batch_size, "lr": args.lr, "seed": args.seed}
+    meta = {
+        "dataset": args.dataset, 
+        "epochs": args.epochs,  # This is now just metadata
+        "epochs_per_slice": 1,  # FIXED: Use 1 epoch per slice
+        "shards": args.shards, 
+        "slices": args.slices, 
+        "batch_size": args.batch_size, 
+        "lr": args.lr, 
+        "seed": args.seed
+    }
     json.dump(meta, open(os.path.join(args.out,"meta.json"),"w"), indent=2)
     os.makedirs(os.path.join(args.out,"checkpoints"), exist_ok=True)
     os.makedirs(os.path.join(args.out,"indices"), exist_ok=True)
     json.dump([list(map(int,s)) for s in shards], open(os.path.join(args.out,"indices","shards.json"),"w"))
+    
     accuracies = []
+    # FIXED: Use 1 epoch per slice for fair comparison
+    epochs_per_slice = 1
     for si, shard_idx in enumerate(shards):
         shard_dir = os.path.join(args.out,"checkpoints", f"shard_{si}")
         os.makedirs(shard_dir, exist_ok=True)
         # slice indices
         slices = np.array_split(np.array(shard_idx), args.slices)
         json.dump([s.tolist() for s in slices], open(os.path.join(args.out,"indices", f"slices_shard_{si}.json"),"w"))
-        # incremental training with save-before-next-slice
+        # FIXED: incremental training with 1 epoch per slice
         current_indices = []
         model = make_model()
         for r, sl in enumerate(slices):
@@ -58,14 +70,24 @@ def main():
             # save state BEFORE adding next slice (slicing idea)
             torch.save(model.state_dict(), os.path.join(shard_dir, f"slice_{r}_preadd.pt"))
             train_subset = Subset(train_ds, current_indices)
-            model, acc, tr_time = train_classifier(model, train_subset, test_ds, epochs=args.epochs, batch_size=args.batch_size, lr=args.lr)
+            # FIXED: Train for 1 epoch per slice (not args.epochs!)
+            model, acc, tr_time = train_classifier(
+                model, train_subset, test_ds, 
+                epochs=epochs_per_slice,  # ← FIXED: 1 epoch per slice
+                batch_size=args.batch_size, 
+                lr=args.lr
+            )
             torch.save(model.state_dict(), os.path.join(shard_dir, f"slice_{r}_post.pt"))
         # record shard acc
         accuracies.append(acc)
     # Simple aggregation evaluation: majority vote among constituents
     agg_acc = evaluate_ensemble(args, make_model, test_ds)
-    json.dump({"per_shard_acc": accuracies, "ensemble_acc": agg_acc}, open(os.path.join(args.out,"summary.json"),"w"), indent=2)
-    print(f"Ensemble accuracy: {agg_acc:.4f}")
+    json.dump({
+        "per_shard_acc": accuracies, 
+        "ensemble_acc": agg_acc,
+        "total_epochs_per_shard": args.slices * epochs_per_slice  # Track actual epochs used
+    }, open(os.path.join(args.out,"summary.json"),"w"), indent=2)
+    print(f"Ensemble accuracy: {agg_acc:.4f} (trained with {args.slices} epochs per shard)")
 
 @torch.no_grad()
 def evaluate_ensemble(args, make_model, test_ds):

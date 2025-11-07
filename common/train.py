@@ -13,7 +13,8 @@ def train_classifier(model, train_ds, test_ds, epochs=5, batch_size=128, lr=1e-3
     opt = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()
     nw = get_num_workers(device)
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=nw)
+    # drop_last=True prevents BatchNorm errors when last batch has size 1
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=nw, drop_last=True)
     test_loader = DataLoader(test_ds, batch_size=256, shuffle=False, num_workers=nw)
     t0 = time.time()
     for _ in range(epochs):

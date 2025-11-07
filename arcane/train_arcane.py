@@ -22,7 +22,8 @@ def train_supervised(model, train_subset, test_ds, epochs=5, batch_size=128, lr=
     opt = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()
     nw = get_num_workers(device)
-    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=nw)
+    # drop_last=True prevents BatchNorm errors when last batch has size 1
+    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=nw, drop_last=True)
     for _ in range(epochs):
         model.train()
         for x,y in train_loader:
@@ -52,7 +53,7 @@ def evaluate(model, test_ds):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", type=str, default="mnist", choices=["mnist","fashionmnist","cifar10","svhn"])
-    ap.add_argument("--epochs", type=int, default=5)
+    ap.add_argument("--epochs", type=int, default=5, help="Total epoch budget (will use 1 epoch per block)")
     ap.add_argument("--blocks", type=int, default=5, help="number of training blocks (save pre/post state)")
     ap.add_argument("--batch-size", type=int, default=128)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -74,30 +75,48 @@ def main():
     all_idx = rng.permutation(np.array(all_idx)).tolist()
     blocks = np.array_split(np.array(all_idx), args.blocks)
 
-    json.dump({
+    # FIXED: Use 1 epoch per block
+    epochs_per_block = 1
+    
+    meta = {
         "dataset": args.dataset,
-        "epochs": args.epochs,
+        "epochs": args.epochs,  # Just metadata
+        "epochs_per_block": epochs_per_block,  # FIXED: Track actual epochs
         "blocks": args.blocks,
         "batch_size": args.batch_size,
         "lr": args.lr,
         "seed": args.seed
-    }, open(os.path.join(args.out,"meta.json"),"w"), indent=2)
+    }
+    json.dump(meta, open(os.path.join(args.out,"meta.json"),"w"), indent=2)
     os.makedirs(os.path.join(args.out,"indices"), exist_ok=True)
     json.dump([b.tolist() for b in blocks], open(os.path.join(args.out,"indices","blocks.json"),"w"))
 
     os.makedirs(os.path.join(args.out,"checkpoints"), exist_ok=True)
     model = make_model(args.dataset, num_classes)
     used = []
+    
+    # FIXED: Train with 1 epoch per block
     for bi, blk in enumerate(blocks):
         # save pre state
         torch.save(model.state_dict(), os.path.join(args.out, "checkpoints", f"block_{bi}_pre.pt"))
         used += blk.tolist()
-        model = train_supervised(model, Subset(train_ds, used), test_ds, epochs=args.epochs, batch_size=args.batch_size, lr=args.lr)
+        
+        # FIXED: Train for 1 epoch per block (not args.epochs!)
+        model = train_supervised(
+            model, Subset(train_ds, used), test_ds, 
+            epochs=epochs_per_block,  # ← FIXED: 1 epoch per block
+            batch_size=args.batch_size, 
+            lr=args.lr
+        )
         torch.save(model.state_dict(), os.path.join(args.out, "checkpoints", f"block_{bi}_post.pt"))
 
     acc = evaluate(model, test_ds)
-    json.dump({"arcane_acc": float(acc)}, open(os.path.join(args.out,"summary.json"),"w"), indent=2)
-    print(f"ARCANE accuracy: {acc:.4f}")
+    summary = {
+        "arcane_acc": float(acc),
+        "total_epochs": args.blocks * epochs_per_block  # Track actual epochs used
+    }
+    json.dump(summary, open(os.path.join(args.out,"summary.json"),"w"), indent=2)
+    print(f"ARCANE accuracy: {acc:.4f} (trained with {args.blocks} epochs)")
 
 if __name__ == "__main__":
     main()
