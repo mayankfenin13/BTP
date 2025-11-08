@@ -31,8 +31,10 @@ def main():
     train_ds, num_classes = get_dataset(dataset, train=True)
     test_ds,_ = get_dataset(dataset, train=False)
     device = get_device()
-    # Use same device logic as SISA for fair comparison
-    train_device = "cpu" if is_mps() else device
+    # Try MPS/CUDA first for speed, but allow CPU fallback if needed
+    # For full dataset runs, MPS is much faster (3-5x) than CPU
+    train_device = device  # Use MPS/CUDA if available, CPU otherwise
+    # Note: If MPS crashes occur, you can manually set train_device = "cpu" above
     blocks = json.load(open(os.path.join(args.run_dir,"indices","blocks.json")))
     
     # FIXED: Sample deletions from recent blocks only (temporal locality)

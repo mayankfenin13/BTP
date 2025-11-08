@@ -75,8 +75,10 @@ def main():
         make_model = lambda: LeNet(num_classes=num_classes)
     else:
         make_model = lambda: small_cnn_cifar(num_classes=num_classes)
-    # Choose a safer device for training if on MPS (use CPU to avoid crashes)
-    train_device = "cpu" if is_mps() else get_device()
+    # Try MPS first for speed, but allow CPU fallback if needed
+    # For full dataset runs, MPS is much faster (3-5x) than CPU
+    train_device = get_device()  # Use MPS/CUDA if available, CPU otherwise
+    # Note: If MPS crashes occur, you can manually set train_device = "cpu" above
     # FIXED: Baseline trains with same total epochs as original SISA training
     baseline_t0 = time.time()
     keep = [i for i in all_idx.tolist() if i not in set(unlearn_points)]

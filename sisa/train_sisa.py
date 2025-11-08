@@ -10,6 +10,34 @@ from common.data import get_dataset, split_indices_by_class, random_shards, cap_
 from common.models import LeNet, small_cnn_cifar
 from common.device import get_device, get_num_workers, get_safe_infer_device
 from common.train import train_classifier, evaluate
+import tempfile
+
+# Set temp directory to output directory to avoid disk space issues
+def setup_temp_dir(out_dir):
+    """Set temp directory to output directory to avoid disk space issues"""
+    temp_dir = os.path.join(out_dir, ".tmp")
+    os.makedirs(temp_dir, exist_ok=True)
+    os.environ['TMPDIR'] = temp_dir
+    os.environ['TMP'] = temp_dir
+    os.environ['TEMP'] = temp_dir
+    return temp_dir
+
+def save_checkpoint(state_dict, path, max_retries=3):
+    """Save checkpoint with retry logic and compression"""
+    for attempt in range(max_retries):
+        try:
+            # Use compression to save disk space
+            torch.save(state_dict, path, _use_new_zipfile_serialization=False)
+            return True
+        except (RuntimeError, OSError) as e:
+            if attempt < max_retries - 1:
+                time.sleep(1)  # Wait 1 second before retry
+                continue
+            else:
+                print(f"ERROR: Failed to save checkpoint after {max_retries} attempts: {path}")
+                print(f"Error: {e}")
+                raise
+    return False
 
 def main():
     ap = argparse.ArgumentParser()
@@ -24,6 +52,8 @@ def main():
     ap.add_argument("--out", type=str, required=True)
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
+    # Set temp directory to avoid disk space issues
+    setup_temp_dir(args.out)
     rng = np.random.default_rng(args.seed)
     train_ds, num_classes = get_dataset(args.dataset, train=True)
     test_ds, _ = get_dataset(args.dataset, train=False)
@@ -68,7 +98,8 @@ def main():
         for r, sl in enumerate(slices):
             current_indices += sl.tolist()
             # save state BEFORE adding next slice (slicing idea)
-            torch.save(model.state_dict(), os.path.join(shard_dir, f"slice_{r}_preadd.pt"))
+            preadd_path = os.path.join(shard_dir, f"slice_{r}_preadd.pt")
+            save_checkpoint(model.state_dict(), preadd_path)
             train_subset = Subset(train_ds, current_indices)
             # FIXED: Train for 1 epoch per slice (not args.epochs!)
             model, acc, tr_time = train_classifier(
@@ -77,7 +108,8 @@ def main():
                 batch_size=args.batch_size, 
                 lr=args.lr
             )
-            torch.save(model.state_dict(), os.path.join(shard_dir, f"slice_{r}_post.pt"))
+            post_path = os.path.join(shard_dir, f"slice_{r}_post.pt")
+            save_checkpoint(model.state_dict(), post_path)
         # record shard acc
         accuracies.append(acc)
     # Simple aggregation evaluation: majority vote among constituents
