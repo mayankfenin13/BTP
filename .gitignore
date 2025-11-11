@@ -24,6 +24,7 @@ __pycache__/
 # Exclude runs/ and data/ folders (too large for GitHub)
 runs/
 data/
+files/
 
 # Archives
 *.tar
