@@ -21,13 +21,9 @@ __pycache__/
 /.venv
 
 # Data, outputs and large artifacts
-# Note: data/, runs/, and runs/all_datasets/ are now tracked (user requested)
-# Warning: runs/ is 1.3GB - may cause issues with GitHub
-
-# model checkpoints (commented out - user wants to track runs/)
-# **/checkpoints/
-# **/metrics/
-# **/indices/
+# Exclude runs/ and data/ folders (too large for GitHub)
+runs/
+data/
 
 # Archives
 *.tar
