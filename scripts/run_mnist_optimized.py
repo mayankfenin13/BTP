@@ -10,7 +10,9 @@ import sys
 import json
 from pathlib import Path
 
-BASE_DIR = "runs/mnist_optimized"
+# Get the repository root directory (parent of scripts/)
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BASE_DIR = REPO_ROOT / "runs/mnist_optimized"
 
 # Optimized configurations for MNIST
 # Strategy: More shards/blocks for speedup, more epochs for accuracy
@@ -41,7 +43,8 @@ def run_command(cmd, description):
     print()
     
     try:
-        result = subprocess.run(cmd, check=True, capture_output=False)
+        # Run from repository root to ensure correct paths
+        result = subprocess.run(cmd, check=True, capture_output=False, cwd=str(REPO_ROOT))
         print(f"✓ {description} completed successfully")
         return True
     except subprocess.CalledProcessError as e:
@@ -52,7 +55,7 @@ def run_command(cmd, description):
 def run_sisa():
     """Run SISA training and unlearning on MNIST"""
     config = MNIST_CONFIGS["sisa"]
-    out_dir = f"{BASE_DIR}/sisa_mnist_s{config['shards']}x{config['slices']}_e{config['epochs']}"
+    out_dir = str(BASE_DIR / f"sisa_mnist_s{config['shards']}x{config['slices']}_e{config['epochs']}")
     
     cmd = [
         "python", "sisa/train_sisa.py",
@@ -87,7 +90,7 @@ def run_sisa():
 def run_arcane():
     """Run ARCANE training and unlearning on MNIST"""
     config = MNIST_CONFIGS["arcane"]
-    out_dir = f"{BASE_DIR}/arcane_mnist_b{config['blocks']}_e{config['epochs']}"
+    out_dir = str(BASE_DIR / f"arcane_mnist_b{config['blocks']}_e{config['epochs']}")
     
     cmd = [
         "python", "arcane/train_arcane.py",
@@ -125,7 +128,7 @@ def print_summary():
     print("="*60)
     
     # SISA results
-    sisa_dir = f"{BASE_DIR}/sisa_mnist_s{MNIST_CONFIGS['sisa']['shards']}x{MNIST_CONFIGS['sisa']['slices']}_e{MNIST_CONFIGS['sisa']['epochs']}"
+    sisa_dir = str(BASE_DIR / f"sisa_mnist_s{MNIST_CONFIGS['sisa']['shards']}x{MNIST_CONFIGS['sisa']['slices']}_e{MNIST_CONFIGS['sisa']['epochs']}")
     sisa_summary_path = os.path.join(sisa_dir, "summary.json")
     sisa_unlearn_path = os.path.join(sisa_dir, "metrics", "unlearn_summary.json")
     
@@ -148,7 +151,7 @@ def print_summary():
         print(f"  Avg Tail Slices:    {sisa_unlearn.get('avg_tail_slices', 'N/A'):.1f} / {MNIST_CONFIGS['sisa']['slices']}")
     
     # ARCANE results
-    arcane_dir = f"{BASE_DIR}/arcane_mnist_b{MNIST_CONFIGS['arcane']['blocks']}_e{MNIST_CONFIGS['arcane']['epochs']}"
+    arcane_dir = str(BASE_DIR / f"arcane_mnist_b{MNIST_CONFIGS['arcane']['blocks']}_e{MNIST_CONFIGS['arcane']['epochs']}")
     arcane_summary_path = os.path.join(arcane_dir, "summary.json")
     arcane_unlearn_path = os.path.join(arcane_dir, "metrics", "unlearn_summary.json")
     
@@ -170,7 +173,7 @@ def print_summary():
     print("\n" + "="*60)
 
 def main():
-    os.makedirs(BASE_DIR, exist_ok=True)
+    os.makedirs(str(BASE_DIR), exist_ok=True)
     
     print("="*60)
     print("MNIST Optimized Experiments")

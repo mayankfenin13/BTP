@@ -124,8 +124,8 @@ def main():
 @torch.no_grad()
 def evaluate_ensemble(args, make_model, test_ds):
     device = get_safe_infer_device()
-    nw = get_num_workers(device)
-    test_loader = DataLoader(test_ds, batch_size=256, shuffle=False, num_workers=nw)
+    # Use num_workers=0 to avoid multiprocessing shared memory issues
+    test_loader = DataLoader(test_ds, batch_size=256, shuffle=False, num_workers=0)
     all_models = []
     for si in range(args.shards):
         shard_dir = os.path.join(args.out,"checkpoints", f"shard_{si}")

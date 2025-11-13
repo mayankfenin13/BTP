@@ -49,9 +49,9 @@ def train_supervised(model, train_subset, test_ds, epochs=5, batch_size=128, lr=
     model = model.to(device)
     opt = optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()
-    nw = get_num_workers(device)
+    # Use num_workers=0 to avoid multiprocessing shared memory issues
     # drop_last=True prevents BatchNorm errors when last batch has size 1
-    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=nw, drop_last=True)
+    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=True)
     for _ in range(epochs):
         model.train()
         for x,y in train_loader:
@@ -67,8 +67,8 @@ def train_supervised(model, train_subset, test_ds, epochs=5, batch_size=128, lr=
 def evaluate(model, test_ds):
     device = get_device()
     model = model.to(device).eval()
-    nw = get_num_workers(device)
-    test_loader = DataLoader(test_ds, batch_size=256, shuffle=False, num_workers=nw)
+    # Use num_workers=0 to avoid multiprocessing shared memory issues
+    test_loader = DataLoader(test_ds, batch_size=256, shuffle=False, num_workers=0)
     total, correct = 0, 0
     for x,y in test_loader:
         x,y = x.to(device), y.to(device)

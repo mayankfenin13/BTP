@@ -18,7 +18,7 @@ def main():
     ap.add_argument("--epochs", type=int, default=None, help="override epochs for baseline")
     ap.add_argument("--batch-size", type=int, default=None)
     ap.add_argument("--lr", type=float, default=None)
-    ap.add_argument("--affect-frac-shards", type=float, default=0.2, help="fraction of shards to affect (default 0.2 for high speedup, 0.6 for moderate ~10-20x)")
+    ap.add_argument("--affect-frac-shards", type=float, default=0.6, help="fraction of shards to affect (default 0.6 for ~10x speedup)")
     args = ap.parse_args()
     meta = json.load(open(os.path.join(args.run_dir,"meta.json")))
     dataset = meta["dataset"]
@@ -36,12 +36,11 @@ def main():
     train_ds, num_classes = get_dataset(dataset, train=True)
     test_ds,_ = get_dataset(dataset, train=False)
     
-    # FIXED: Sample deletions from recent slices only (temporal locality)
-    # This ensures we only retrain the tail, giving real speedups
+    # MODIFIED: Sample deletions from recent slices, but affect more shards for moderate speedup
     rng = np.random.default_rng(123)
     num_shards = len(shards)
     recent_frac = 0.2          # focus on most recent 20% slices
-    affect_frac_shards = args.affect_frac_shards  # Use parameter (default 0.2, can be set to 0.6 for moderate speedup)
+    affect_frac_shards = args.affect_frac_shards  # MODIFIED: Use parameter (default 0.6 = 60% of shards)
     
     # Pick shards to affect
     affect_count = max(1, int(np.ceil(num_shards * affect_frac_shards)))
@@ -79,16 +78,14 @@ def main():
     else:
         make_model = lambda: small_cnn_cifar(num_classes=num_classes)
     # Try MPS first for speed, but allow CPU fallback if needed
-    # For full dataset runs, MPS is much faster (3-5x) than CPU
-    train_device = get_device()  # Use MPS/CUDA if available, CPU otherwise
-    # Note: If MPS crashes occur, you can manually set train_device = "cpu" above
+    train_device = get_device()
     # FIXED: Baseline trains with same total epochs as original SISA training
     baseline_t0 = time.time()
     keep = [i for i in all_idx.tolist() if i not in set(unlearn_points)]
     base_model = make_model()
     base_model, base_acc, base_time = train_classifier(
         base_model, Subset(train_ds, keep), test_ds, 
-        epochs=baseline_epochs,  # ← FIXED: Use same total epochs
+        epochs=baseline_epochs,
         batch_size=batch_size, 
         lr=lr, 
         device=train_device
@@ -124,7 +121,7 @@ def main():
                 continue
             model, acc, _ = train_classifier(
                 model, train_subset, test_ds, 
-                epochs=epochs_per_slice,  # ← FIXED: 1 epoch per slice
+                epochs=epochs_per_slice,
                 batch_size=batch_size, 
                 lr=lr, 
                 device=train_device
@@ -163,14 +160,15 @@ def main():
         "baseline_acc": base_acc,
         "sisa_total_time_s": sisa_time,
         "ensemble_acc_after_unlearn": ensemble_acc,
-        "speedup_train_only": speedup_train_only,  # Primary speedup metric
+        "speedup_train_only": speedup_train_only,
         "speedup_total": speedup_total
     }
     json.dump(result, open(os.path.join(args.run_dir,"metrics","unlearn_summary.json"),"w"), indent=2)
     
     print("\n" + "="*60)
-    print("SISA Unlearning Results")
+    print("SISA Unlearning Results (Moderate Speedup)")
     print("="*60)
+    print(f"Affected shards:   {len(affected_by_shard)} / {num_shards} ({affect_frac_shards*100:.0f}%)")
     print(f"Baseline time:    {baseline_total_time:.2f}s ({baseline_epochs} epochs)")
     print(f"SISA time:        {sisa_time:.2f}s ({len(affected_by_shard)} affected shards)")
     print(f"Speedup (train):  {speedup_train_only:.2f}x")
@@ -211,3 +209,4 @@ def evaluate_ensemble(run_dir, num_shards, make_model, test_ds):
 
 if __name__ == "__main__":
     main()
+

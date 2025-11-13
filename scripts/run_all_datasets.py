@@ -14,7 +14,9 @@ import matplotlib
 matplotlib.use("Agg")  # Use non-interactive backend (no display required)
 import matplotlib.pyplot as plt
 
-BASE_DIR = "runs/all_datasets"
+# Resolve repository root (parent of this scripts/ directory) and use absolute paths
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BASE_DIR = str(REPO_ROOT / "runs" / "all_datasets")
 
 # Experiment configurations optimized for good accuracy and speedup
 # Note: epochs parameter is now metadata (actual training uses 1 epoch per slice/block)
@@ -28,6 +30,13 @@ EXPERIMENTS = {
             "batch_size": 128,
             "lr": 5e-3,
             "limit_per_class": 2000  # More data for better accuracy
+        },
+        "arcane": {
+            "epochs": 12,           # Metadata: total epochs = blocks (previous setting)
+            "blocks": 12,           # 12 blocks = 12 epochs total
+            "batch_size": 128,
+            "lr": 1e-3,
+            "limit_per_class": 2000
         }
     },
     "cifar10": {
@@ -59,14 +68,14 @@ def run_command(cmd, description):
     print()
     
     try:
-        result = subprocess.run(cmd, check=True, capture_output=False)
+        result = subprocess.run(cmd, check=True, capture_output=False, cwd=str(REPO_ROOT))
         return True
     except subprocess.CalledProcessError as e:
         print(f"ERROR: {description} failed!")
         print(f"Exit code: {e.returncode}")
         return False
 
-def run_sisa(dataset, config):
+def run_sisa(dataset, config, affect_frac_shards=0.2):
     """Run SISA training and unlearning"""
     out_dir = f"{BASE_DIR}/sisa_{dataset}_s{config['shards']}x{config['slices']}_e{config['epochs']}"
     
@@ -91,10 +100,11 @@ def run_sisa(dataset, config):
     cmd = [
         "python", "sisa/unlearn_sisa.py",
         "--run-dir", out_dir,
-        "--unlearn-frac", "0.05"
+        "--unlearn-frac", "0.05",
+        "--affect-frac-shards", str(affect_frac_shards)
     ]
     
-    if not run_command(cmd, f"SISA unlearning on {dataset}"):
+    if not run_command(cmd, f"SISA unlearning on {dataset} (affecting {affect_frac_shards*100:.0f}% of shards)"):
         return False
     
     # Generate plots
@@ -156,9 +166,7 @@ def print_summary():
                 method = "SISA" if "sisa" in run_dir else "ARCANE"
                 dataset = os.path.basename(run_dir).split("_")[1]
                 
-                # Skip datasets/methods that are not part of the current run
-                if dataset != "fashionmnist" or method != "SISA":
-                    continue
+                # Include both SISA and ARCANE for Fashion-MNIST and CIFAR-10
                 
                 acc_key = "ensemble_acc" if "sisa" in run_dir else "arcane_acc"
                 if acc_key in summary:
@@ -288,10 +296,12 @@ def main():
     os.makedirs(BASE_DIR, exist_ok=True)
     
     print("="*70)
-    print("Running SISA on Fashion-MNIST only")
+    print("Running SISA CIFAR-10 with Moderate Speedup (10-20x)")
     print("="*70)
     print()
-    print("This will run SISA experiments with optimized hyperparameters.")
+    print("This will run SISA CIFAR-10 with 60% shard affectation.")
+    print("Target speedup: 10-20x (instead of 1290x)")
+    print("Other runs are commented out for this execution.")
     print()
     
     # Ask for confirmation
@@ -305,8 +315,10 @@ def main():
         print("Cancelled.")
         return
     
-    # Run experiments (only Fashion-MNIST SISA)
-    datasets = ["fashionmnist"]
+    # Run experiments - ONLY SISA CIFAR-10 with moderate speedup (10-20x)
+    # Commented out other runs for this execution
+    datasets = ["cifar10"]  # Only CIFAR-10
+    # datasets = ["fashionmnist", "cifar10"]  # Original: both datasets
     
     for dataset in datasets:
         print(f"\n{'#'*70}")
@@ -315,10 +327,18 @@ def main():
         
         config = EXPERIMENTS[dataset]
         
-        # Run SISA only
+        # Run SISA
         print(f"\n>>> Running SISA on {dataset}...")
-        if not run_sisa(dataset, config["sisa"]):
+        # For CIFAR-10, use affect_frac_shards=0.6 (60% = 3 shards) to get ~10-20x speedup
+        affect_frac = 0.6 if dataset == "cifar10" else 0.2
+        if not run_sisa(dataset, config["sisa"], affect_frac_shards=affect_frac):
             print(f"WARNING: SISA on {dataset} failed.")
+        
+        # Run ARCANE (if configured) - COMMENTED OUT FOR THIS RUN
+        # if "arcane" in config:
+        #     print(f"\n>>> Running ARCANE on {dataset}...")
+        #     if not run_arcane(dataset, config["arcane"]):
+        #         print(f"WARNING: ARCANE on {dataset} failed.")
     
     # Print summary
     print_summary()
