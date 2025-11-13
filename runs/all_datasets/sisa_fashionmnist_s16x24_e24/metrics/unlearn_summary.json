@@ -1,0 +1,20 @@
+{
+  "n_unlearn": 1000,
+  "baseline_epochs": 24,
+  "num_affected_shards": 4,
+  "affected_shards": [
+    0,
+    8,
+    9,
+    15
+  ],
+  "avg_tail_slices": 5.0,
+  "total_slices_per_shard": 24,
+  "baseline_total_time_s": 27.46735191345215,
+  "baseline_train_time_s": 26.825467824935913,
+  "baseline_acc": 0.8742,
+  "sisa_total_time_s": 7.932640075683594,
+  "ensemble_acc_after_unlearn": 0.7191,
+  "speedup_train_only": 3.381656998048564,
+  "speedup_total": 3.4625738280562484
+}

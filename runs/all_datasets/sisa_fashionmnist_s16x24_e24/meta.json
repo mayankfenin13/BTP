@@ -1,0 +1,10 @@
+{
+  "dataset": "fashionmnist",
+  "epochs": 24,
+  "epochs_per_slice": 1,
+  "shards": 16,
+  "slices": 24,
+  "batch_size": 128,
+  "lr": 0.005,
+  "seed": 42
+}

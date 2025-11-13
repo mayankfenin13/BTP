@@ -1,0 +1,10 @@
+{
+  "dataset": "cifar10",
+  "epochs": 30,
+  "epochs_per_slice": 1,
+  "shards": 5,
+  "slices": 30,
+  "batch_size": 128,
+  "lr": 0.001,
+  "seed": 42
+}

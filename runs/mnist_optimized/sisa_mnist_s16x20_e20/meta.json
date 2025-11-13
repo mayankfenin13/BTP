@@ -1,0 +1,10 @@
+{
+  "dataset": "mnist",
+  "epochs": 20,
+  "epochs_per_slice": 1,
+  "shards": 16,
+  "slices": 20,
+  "batch_size": 128,
+  "lr": 0.001,
+  "seed": 42
+}

@@ -1,0 +1,13 @@
+{
+  "n_unlearn": 3000,
+  "baseline_epochs": 20,
+  "arcane_epochs": 6,
+  "earliest_affected_block": 14,
+  "affected_tail_blocks": 6,
+  "total_blocks": 20,
+  "baseline_time_s": 60.6681170463562,
+  "arcane_time_s": 2.7941808700561523,
+  "baseline_acc": 0.9899,
+  "arcane_acc_after_unlearn": 0.9883,
+  "speedup": 21.712308496742732
+}

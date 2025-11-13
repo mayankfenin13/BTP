@@ -1,0 +1,76 @@
+==========================================
+MNIST Optimized Experiments
+==========================================
+
+Training SISA on MNIST...
+  Shards: 16, Slices: 20, Epochs: 20
+  Full dataset (no limit)
+
+Ensemble accuracy: 0.8643 (trained with 20 epochs per shard)
+
+Running SISA unlearning (5% unlearn)...
+
+============================================================
+SISA Unlearning Results
+============================================================
+Baseline time:    243.29s (20 epochs)
+SISA time:        0.16s (4 affected shards)
+Speedup (train):  1477.02x
+Speedup (total):  1513.15x
+Avg tail slices:  4.0 / 20
+Baseline acc:     0.9899
+SISA acc:         0.8992
+============================================================
+
+Generating SISA plots...
+
+✓ SISA MNIST complete!
+
+Training Arcane on MNIST...
+  Blocks: 20, Epochs: 20
+  Full dataset (no limit)
+
+ARCANE accuracy: 0.9878 (trained with 20 epochs)
+
+Running Arcane unlearning (5% unlearn)...
+
+============================================================
+ARCANE Unlearning Results
+============================================================
+Baseline time:    199.64s (20 epochs)
+ARCANE time:      15.91s (from block 14)
+Speedup:          12.55x
+Tail blocks:      6 / 20
+Baseline acc:     0.9897
+ARCANE acc:       0.9856
+============================================================
+
+Generating Arcane plots...
+
+✓ Arcane MNIST complete!
+
+==========================================
+SUMMARY
+==========================================
+
+SISA Training:
+  Ensemble Accuracy: 0.8643
+
+SISA Unlearning:
+  Baseline Accuracy: 0.9899
+  SISA Accuracy: 0.8992
+  Speedup (train): 1477.02x
+  Affected Shards: 4 / 16
+
+Arcane Training:
+  Accuracy: 0.9878
+
+Arcane Unlearning:
+  Baseline Accuracy: 0.9897
+  Arcane Accuracy: 0.9856
+  Speedup: 12.55x
+  Tail Blocks: 6 / 20
+
+==========================================
+All experiments completed!
+==========================================

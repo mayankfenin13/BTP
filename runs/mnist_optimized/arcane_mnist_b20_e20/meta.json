@@ -1,0 +1,9 @@
+{
+  "dataset": "mnist",
+  "epochs": 20,
+  "epochs_per_block": 1,
+  "blocks": 20,
+  "batch_size": 128,
+  "lr": 0.001,
+  "seed": 42
+}

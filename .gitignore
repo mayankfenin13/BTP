@@ -22,7 +22,7 @@ __pycache__/
 
 # Data, outputs and large artifacts
 # Exclude runs/ and data/ folders (too large for GitHub)
-runs/
+
 data/
 files/
 
